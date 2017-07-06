@@ -1,5 +1,9 @@
-import videojs from 'video.js';
-import makeVideoPlayableInline from 'iphone-inline-video';
+'use strict';
+
+function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
+
+var videojs = _interopDefault(require('video.js'));
+var makeVideoPlayableInline = _interopDefault(require('iphone-inline-video'));
 
 var version = "0.1.1";
 
@@ -1445,4 +1449,4 @@ registerPlugin('MPPanorama', MPPanorama);
 // Include the version number.
 MPPanorama.VERSION = version;
 
-export default MPPanorama;
+module.exports = MPPanorama;
