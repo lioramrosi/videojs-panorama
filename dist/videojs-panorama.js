@@ -291,6 +291,7 @@ var BaseCanvas = function BaseCanvas(baseComponent, THREE) {
     //last time the camera direction has hed a reading
     var lastTimeRead;
     return {
+
         constructor: function init(player, options) {
             this.settings = options;
             //basic settings
@@ -310,21 +311,23 @@ var BaseCanvas = function BaseCanvas(baseComponent, THREE) {
 
             //define texture, on ie 11, we need additional helper canvas to solve rendering issue.
             var video = settings.getTech(player);
-            this.supportVideoTexture = Detector.supportVideoTexture();
-            this.liveStreamOnSafari = Detector.isLiveStreamOnSafari(video);
-            if (this.liveStreamOnSafari) this.supportVideoTexture = false;
-            if (!this.supportVideoTexture) {
-                this.helperCanvas = player.addChild("HelperCanvas", {
-                    video: video,
-                    width: options.helperCanvas.width ? options.helperCanvas.width : this.width,
-                    height: options.helperCanvas.height ? options.helperCanvas.height : this.height
-                });
-                var context = this.helperCanvas.el();
-                this.texture = new THREE.Texture(context);
-            } else {
-                this.texture = new THREE.Texture(video);
-            }
-
+            //this.supportVideoTexture = Detector.supportVideoTexture();
+            //this.liveStreamOnSafari = Detector.isLiveStreamOnSafari(video);
+            //if (this.liveStreamOnSafari) this.supportVideoTexture = false;
+            //if (!this.supportVideoTexture) {
+            //    this.helperCanvas = player.addChild("HelperCanvas", {
+            //        video: video,
+            //        width: options.helperCanvas.width ? options.helperCanvas.width : this.width,
+            //        height: options.helperCanvas.height ? options.helperCanvas.height : this.height
+            //    });
+            //    var context = this.helperCanvas.el();
+            //    this.texture = new THREE.Texture(context);
+            //    console.log("33333");
+            //} else {
+            //    console.log("1111");
+            //    this.texture = new THREE.Texture(video);
+            //}
+            this.texture = new THREE.Texture(video);
             video.style.visibility = "hidden";
 
             this.texture.generateMipmaps = false;
@@ -343,6 +346,66 @@ var BaseCanvas = function BaseCanvas(baseComponent, THREE) {
                 this.time = new Date().getTime();
                 this.startAnimation();
             }.bind(this));
+
+            console.log("isHLS()",isHLS());
+            console.log("isSafari()",isSafari());
+            console.log("isIOS()",isIOS());
+            if (isHLS() && isSafari() && isIOS()) {
+                console.log("Safari + iOS + HLS = flipY and colorspace hack");
+                this.texture.format = THREE.RGBAFormat;
+                this.texture.flipY = false;
+            } else if (isHLS() && isSafari()) {
+                console.log("Safari + HLS = flipY hack");
+                this.texture.format = THREE.RGBFormat;
+                this.texture.flipY = false;
+            } else {
+                this.texture.format = THREE.RGBFormat;
+            }
+
+            if (this.texture.format === THREE.RGBAFormat && this.texture.flipY === false) {
+                this.movieMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        texture: { value: this.texture }
+                    },
+                    vertexShader: [
+                        "varying vec2 vUV;",
+                        "void main() {",
+                        "	vUV = vec2( uv.x, 1.0 - uv.y );",
+                        "	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+                        "}"
+                    ].join("\n"),
+                    fragmentShader: [
+                        "uniform sampler2D texture;",
+                        "varying vec2 vUV;",
+                        "void main() {",
+                        " gl_FragColor = texture2D( texture, vUV  ).bgra;",
+                        "}"
+                    ].join("\n")
+                });
+            } else if (this.texture.format === THREE.RGBFormat && this.texture.flipY === false) {
+                this.movieMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        texture: { value: this.texture }
+                    },
+                    vertexShader: [
+                        "varying vec2 vUV;",
+                        "void main() {",
+                        "	vUV = vec2( uv.x, 1.0 - uv.y );",
+                        "	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+                        "}"
+                    ].join("\n"),
+                    fragmentShader: [
+                        "uniform sampler2D texture;",
+                        "varying vec2 vUV;",
+                        "void main() {",
+                        " gl_FragColor = texture2D( texture, vUV  );",
+                        "}"
+                    ].join("\n")
+                });
+            } else {
+                this.movieMaterial = new THREE.MeshBasicMaterial( { map: this.texture, overdraw: true, side:THREE.DoubleSide } );
+            }
+
         },
 
         setMPScript: function setMPScript(MPScript) {
@@ -609,9 +672,9 @@ var BaseCanvas = function BaseCanvas(baseComponent, THREE) {
             this.phi = THREE.Math.degToRad(90 - this.lat);
             this.theta = THREE.Math.degToRad(this.lon);
 
-            if (!this.supportVideoTexture) {
-                this.helperCanvas.update();
-            }
+            //if (!this.supportVideoTexture) {
+            //    this.helperCanvas.update();
+            //}
             this.renderer.clear();
         },
 
@@ -700,7 +763,7 @@ var Canvas = function Canvas(baseComponent, THREE) {
                 geometry.rotateZ(options.rotateZ);
             }
             geometry.scale(-1, 1, 1);
-            this.mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: this.texture }));
+            this.mesh = new THREE.Mesh(geometry, this.movieMaterial);
             //this.mesh.scale.x = -1;
             this.scene.add(this.mesh);
             this.setMaxLatAndLon(this.camera.fov);
@@ -1222,10 +1285,10 @@ function play() {
 	var player = video[ಠ];
 
 	// if it's fullscreen, use the native player
-	if (video.webkitDisplayingFullscreen) {
-		video[ಠplay]();
-		return;
-	}
+	//if (video.webkitDisplayingFullscreen) {
+	//	video[ಠplay]();
+	//	return;
+	//}
 
 	if (player.driver.src !== 'data:' && player.driver.src !== video.src) {
 		// console.log('src changed on play', video.src);
@@ -1267,9 +1330,9 @@ function pause(forceEvents) {
 	// if it's fullscreen, the developer the native player.pause()
 	// This is at the end of pause() because it also
 	// needs to make sure that the simulation is paused
-	if (video.webkitDisplayingFullscreen) {
-		video[ಠpause]();
-	}
+	//if (video.webkitDisplayingFullscreen) {
+	//	video[ಠpause]();
+	//}
 
 	if (player.paused && !forceEvents) {
 		return;
@@ -1496,6 +1559,7 @@ function playerResize(player) {
 }
 
 function fullscreenOnIOS(player, clickFn) {
+    console.log("fullscreenOnIOS");
     var resizeFn = playerResize(player);
     player.controlBar.fullscreenToggle.off("tap", clickFn);
     player.controlBar.fullscreenToggle.on("tap", function fullscreen() {
@@ -1767,6 +1831,27 @@ var onPlayerReady = function onPlayerReady(player, options) {
   if (options.cameraDirection != null) MPScript(player, options.cameraDirection);
 };
 
+function isIOS() {
+    return /(iPad|iPhone|iPod)/g.test(navigator.userAgent);
+
+};
+
+function isSafari() {
+    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    //return Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
+};
+
+function isHLS(videoElement) {
+    var result = false;
+    var currentType = player.currentType();
+
+    if (currentType == "application/x-mpegURL") {
+        result = true;
+        console.log("Detected HLS Stream");
+    }
+
+    return result;
+}
 function isMobile() {
   var check = false;
   (function (a) {
